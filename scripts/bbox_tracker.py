@@ -4,9 +4,11 @@ import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image, CameraInfo, PointCloud2
 from image_geometry import PinholeCameraModel
+
 import cv2
 import dlib
 import numpy as np
+from math import isnan
 
 class BoundingBoxTracker():
 
@@ -99,29 +101,32 @@ class BoundingBoxTracker():
                 cv2.rectangle(self.frame, p1, p2, (255,0,0), 3, 1)
 
                 bbox_center = ((p1[0] + p2[0])/2, (p1[1] + p2[1])/2)
-
-                [vx,vy,vz] = self.cam_model.projectPixelTo3dRay(bbox_center)
                 center_z = self.depth_image[bbox_center[1], bbox_center[0]]
-                center_z = center_z / 1000
 
-                center_x = vx * center_z
-                center_y = vy * center_z
+                if self._validate_depth_point(center_z):
+                    [vx,vy,vz] = self.cam_model.projectPixelTo3dRay(bbox_center)
 
+                    center_z = center_z / 1000
+                    center_x = vx * center_z
+                    center_y = vy * center_z
 
-                rospy.loginfo('boundix box: ' + str(p1) + str(p2))
-                rospy.loginfo('boundix box center: ' + str(bbox_center))
-                rospy.loginfo('center z : ' + str(center_z/1000))
-                rospy.loginfo('x y z: ' + str(center_x) + ' ' + str(center_y) + ' ' + str(center_z))
+                    rospy.loginfo('boundix box: ' + str(p1) + str(p2))
+                    rospy.loginfo('boundix box center: ' + str(bbox_center))
+                    rospy.loginfo('x y z: ' + str(center_x) + ' ' + str(center_y) + ' ' + str(center_z))
 
-                cv2.circle(self.frame,bbox_center, 5, (0,0,255), -1)
-                # cv2.imshow('image', self.frame)
-                # cv2.waitKey(3)
+                    cv2.circle(self.frame,bbox_center, 5, (0,0,255), -1)
+                    # cv2.imshow('image', self.frame)
+                    # cv2.waitKey(3)
 
-                msg = self.cv_bridge.cv2_to_imgmsg(self.frame)
-                self.tracking_rgb_pub.publish(msg)
+                    msg = self.cv_bridge.cv2_to_imgmsg(self.frame)
+                    self.tracking_rgb_pub.publish(msg)
+                else:
+                    rospy.logwarn('depth point is not valid!')
             rate.sleep()
-
-
+    def _validate_depth_point(self, point):
+        if isnan(point) or point == 0:
+            return False
+        return True
 
 if __name__ == '__main__':
 
